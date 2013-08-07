@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from itertools import izip
+
 class Expr(object):
 	__slots__ = ()
 	def str_under(self,precedence):
@@ -84,15 +86,16 @@ class Div(BinExpr):
 	precedence = property(lambda self: 1)
 
 class Val(Expr):
-	__slots__ = 'value',
-	def __init__(self,value):
+	__slots__ = 'value','index'
+	def __init__(self,value,index):
 		self.value = value
+		self.index = index
 	
 	def __str__(self):
 		return str(self.value)
 
 	def used(self,used):
-		used[self.value] = used.get(self.value,0) + 1
+		used[self.index] += 1
 	
 	def str_under(self,precedence):
 		return str(self.value)
@@ -110,24 +113,25 @@ class Val(Expr):
 
 def solutions(target,numbers):
 	uniq  = set(numbers)
-	avail = dict((num,numbers.count(num)) for num in uniq)
-	exprs = [Val(num) for num in sorted(uniq)]
+	exprs = [Val(num,i) for i, num in enumerate(sorted(uniq))]
+	avail = [numbers.count(val.value) for val in exprs]
 	combs = [bounded_combinations(len(exprs))]
 
 	for expr in exprs:
 		if expr.value == target:
 			yield expr
 
-	n = len(exprs)
+	uniq = set(exprs)
+	numcnt = n = len(exprs)
 	for comb in combs:
 		for a, b in comb:
 			a = exprs[a]
 			b = exprs[b]
-			used = {}
+			used = [0] * numcnt
 			a.used(used)
 			b.used(used)
-			if all(avail[val] >= used[val] for val in used):
-				notfull = not all(avail[val] == used.get(val,0) for val in avail)
+			if all(x >= y for x, y in izip(avail,used)):
+				notfull = not all(x == y for x, y in izip(avail,used))
 				for expr in make(a,b):
 					if expr not in uniq:
 						uniq.add(expr)
@@ -138,7 +142,8 @@ def solutions(target,numbers):
 							yield expr
 		m = len(exprs)
 		# TODO: speedup by somehow not generating combinations that use too many numbers
-		combs.append(combinations_slice(n,m))
+		if n < m:
+			combs.append(combinations_slice(n,m))
 		n = m
 
 #      1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20
@@ -229,19 +234,25 @@ def combinations_slice(lower,upper):
 		i += 1
 
 def make(a,b):
-	exprs = [Add(a,b), Mul(a,b)]
+	exprs = [Add(a,b)]
+
+	if a.value != 1 and b.value != 1:
+		exprs.append(Mul(a,b))
 
 	if a.value > b.value:
 		exprs.append(Sub(a,b))
+
+		if b.value != 1 and a.value % b.value == 0:
+			exprs.append(Div(a,b))
 	
 	elif b.value > a.value:
 		exprs.append(Sub(b,a))
 
-	if a.value % b.value == 0:
+		if a.value != 1 and b.value % a.value == 0:
+			exprs.append(Div(b,a))
+
+	elif b.value != 1: # a.value == b.value
 		exprs.append(Div(a,b))
-		
-	if b.value % a.value == 0:
-		exprs.append(Div(b,a))
 	
 	return exprs
 
@@ -252,6 +263,8 @@ def solution(target, numbers):
 		return None
 
 def main(args):
+	from time import time
+
 	if len(args) < 3:
 		raise ValueError("not enough arguments")
 	
@@ -270,8 +283,12 @@ def main(args):
 #	print 'solution = %s' % exact_solution(target, numbers)
 
 	print "solutions:"
+	start = last = time()
 	for i, solution in enumerate(solutions(target,numbers)):
-		print "%3d: %s" % (i+1, solution)
+		now = time()
+		print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution)
+		last = now
+	print "%f seconds in total" % (time() - start)
 
 if __name__ == '__main__':
 	import sys
