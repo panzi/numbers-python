@@ -18,15 +18,12 @@ class Expr(object):
 		return cmp(str(self),str(other))
 
 class BinExpr(Expr):
-	__slots__ = 'left', 'right', 'value'
+	__slots__ = 'left', 'right', 'value', 'used'
 	def __init__(self,left,right,value):
 		self.left  = left
 		self.right = right
 		self.value = value
-	
-	def used(self,used):
-		self.left.used(used)
-		self.right.used(used)
+		self.used  = [l+r for l, r in izip(left.used,right.used)]
 
 	def __hash__(self):
 		return hash((self.__class__, self.left, self.right))
@@ -86,17 +83,16 @@ class Div(BinExpr):
 	precedence = property(lambda self: 1)
 
 class Val(Expr):
-	__slots__ = 'value','index'
-	def __init__(self,value,index):
+	__slots__ = 'value','index','used'
+	def __init__(self,value,index,numcnt):
 		self.value = value
 		self.index = index
+		self.used  = [0] * numcnt
+		self.used[index] = 1
 	
 	def __str__(self):
 		return str(self.value)
 
-	def used(self,used):
-		used[self.index] += 1
-	
 	def str_under(self,precedence):
 		return str(self.value)
 	
@@ -112,24 +108,23 @@ class Val(Expr):
 	precedence = property(lambda self: 3)
 
 def solutions(target,numbers):
-	uniq  = set(numbers)
-	exprs = [Val(num,i) for i, num in enumerate(sorted(uniq))]
-	avail = [numbers.count(val.value) for val in exprs]
-	combs = [bounded_combinations(len(exprs))]
+	numcnt = len(numbers)
+	uniq   = set(numbers)
+	exprs  = [Val(num,i,numcnt) for i, num in enumerate(sorted(uniq))]
+	avail  = [numbers.count(val.value) for val in exprs]
+	combs  = [bounded_combinations(len(exprs))]
 
 	for expr in exprs:
 		if expr.value == target:
 			yield expr
 
 	uniq = set(exprs)
-	numcnt = n = len(exprs)
+	n = numcnt
 	for comb in combs:
 		for a, b in comb:
 			a = exprs[a]
 			b = exprs[b]
-			used = [0] * numcnt
-			a.used(used)
-			b.used(used)
+			used = [x+y for x, y in izip(a.used,b.used)]
 			if all(x >= y for x, y in izip(avail,used)):
 				notfull = not all(x == y for x, y in izip(avail,used))
 				for expr in make(a,b):
