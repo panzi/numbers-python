@@ -23,7 +23,7 @@ class BinExpr(Expr):
 		self.left  = left
 		self.right = right
 		self.value = value
-		self.used  = [l+r for l, r in izip(left.used,right.used)]
+		self.used  = [l or r for l, r in izip(left.used,right.used)]
 
 	def __hash__(self):
 		return hash((self.__class__, self.left, self.right))
@@ -83,12 +83,12 @@ class Div(BinExpr):
 	precedence = property(lambda self: 1)
 
 class Val(Expr):
-	__slots__ = 'value','index','used'
+	__slots__ = 'value','used','index'
 	def __init__(self,value,index,numcnt):
 		self.value = value
 		self.index = index
-		self.used  = [0] * numcnt
-		self.used[index] = 1
+		self.used  = [False] * numcnt
+		self.used[index] = True
 	
 	def __str__(self):
 		return str(self.value)
@@ -97,22 +97,19 @@ class Val(Expr):
 		return str(self.value)
 	
 	def __hash__(self):
-		return hash(self.value)
+		return hash(self.index)
 
 	def __eq__(self,other):
 		if type(self) != type(other):
 			return False
 
-		return self.value == other.value
+		return self.index == other.index
 
 	precedence = property(lambda self: 3)
 
 def solutions(target,numbers):
 	numcnt = len(numbers)
-	uniq   = set(numbers)
-	exprs  = [Val(num,i,numcnt) for i, num in enumerate(sorted(uniq))]
-	avail  = [numbers.count(val.value) for val in exprs]
-	combs  = [bounded_combinations(len(exprs))]
+	exprs  = [Val(num,i,numcnt) for i, num in enumerate(sorted(numbers))]
 
 	for expr in exprs:
 		if expr.value == target:
@@ -120,26 +117,29 @@ def solutions(target,numbers):
 
 	uniq = set(exprs)
 	n = numcnt
-	for comb in combs:
+	comb = bounded_combinations(len(exprs))
+	while True:
 		for a, b in comb:
 			a = exprs[a]
 			b = exprs[b]
-			used = [x+y for x, y in izip(a.used,b.used)]
-			if all(x >= y for x, y in izip(avail,used)):
-				notfull = not all(x == y for x, y in izip(avail,used))
+
+			if all(not (x and y) for x, y in izip(a.used,b.used)):
+				hasroom = not all(x or y for x, y in izip(a.used,b.used))
 				for expr in make(a,b):
 					if expr not in uniq:
 						uniq.add(expr)
 						issolution = expr.value == target
-						if notfull and not issolution:
+						if hasroom and not issolution:
 							exprs.append(expr)
 						if issolution:
 							yield expr
 		m = len(exprs)
 		# TODO: speedup by somehow not generating combinations that use too many numbers
 		if n < m:
-			combs.append(combinations_slice(n,m))
-		n = m
+			comb = combinations_slice(n,m)
+			n = m
+		else:
+			break
 
 #      1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20
 #  1
