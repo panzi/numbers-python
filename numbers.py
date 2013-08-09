@@ -18,11 +18,8 @@ class Expr(object):
 #		else:
 #			return self.annot_str(annot_map)
 
-	def __hash__(self):
-		return hash(str(self))
-	
-	def __cmp__(self,other):
-		return cmp(str(self),str(other))
+	def normalize(self):
+		return self	
 
 class BinExpr(Expr):
 	__slots__ = 'left', 'right', 'value', 'used'
@@ -40,12 +37,25 @@ class BinExpr(Expr):
 			return False
 
 		return self.left == other.left and self.right == other.right
+	
+	def numeric_hash(self):
+		return hash((self.__class__, self.left.numeric_hash(), self.right.numeric_hash()))
+	
+	def numeric_eq(self,other):
+		if type(self) is not type(other):
+			return False
+
+		return self.left.numeric_eq(other.left) and self.right.numeric_eq(other.right)
+	
+	def clone(self):
+		return self.__class__(self.left,self.right,self.value)
+	
+	def deep_clone(self):
+		return self.__class__(self.left.clone(),self.right.clone(),self.value)
 
 class Add(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
-		if left.value > right.value:
-			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value + right.value)
 
 	def __str__(self):
@@ -60,6 +70,22 @@ class Add(BinExpr):
 
 	def order(self):
 		return (1, self.value)
+	
+	def normalize(self):
+		# TODO: incorporate Sub
+		if type(self.right) is Add:
+			stack = [self.left]
+			node = self.right
+			while type(node) is Add:
+				stack.append(node.right)
+				node = node.left
+			stack.append(node)
+			stack.sort(key=lambda node:node.value)
+			left = stack[0]
+			for right in stack[1:]:
+				left = Add(left,right)
+			return left
+		return self
 
 	precedence = property(lambda self: 0)
 
@@ -81,13 +107,13 @@ class Sub(BinExpr):
 	def order(self):
 		return (2, self.value)
 	
+	# TODO: normalize
+	
 	precedence = property(lambda self: 0)
 		
 class Mul(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
-		if left.value > right.value:
-			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value * right.value)
 		
 	def __str__(self):
@@ -102,6 +128,21 @@ class Mul(BinExpr):
 
 	def order(self):
 		return (3, self.value)
+		
+	def normalize(self):
+		if type(self.right) is Mul:
+			stack = [self.left]
+			node = self.right
+			while type(node) is Mul:
+				stack.append(node.right)
+				node = node.left
+			stack.append(node)
+			stack.sort(key=lambda node:node.value)
+			left = stack[0]
+			for right in stack[1:]:
+				left = Add(left,right)
+			return left
+		return self
 
 	precedence = property(lambda self: 2)
 
@@ -119,6 +160,8 @@ class Div(BinExpr):
 		return '%s / %s' % (
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
+
+	# TODO: normalize
 
 	def order(self):
 		return (4, self.value)
@@ -146,7 +189,7 @@ class Val(Expr):
 		return self.annot_str(annot_map)
 
 	def __hash__(self):
-		return hash(self.index)
+		return self.index
 
 	def __eq__(self,other):
 		if type(self) is not type(other):
@@ -154,10 +197,36 @@ class Val(Expr):
 
 		return self.index == other.index
 
+	def numeric_hash(self):
+		return self.value
+
+	def numeric_eq(self,other):
+		if type(self) is not type(other):
+			return False
+
+		return self.value == other.value
+
 	def order(self):
 		return (0, -self.index)
+	
+	def clone(self):
+		return Val(self.value,self.index,len(self.used))
+	
+	deep_clone = clone
 
 	precedence = property(lambda self: 3)
+
+class NumericHashedExpr(object):
+	__slots__ = 'expr','__hash'
+	def __init__(self,expr):
+		self.expr = expr
+		self.__hash = expr.numeric_hash()
+	
+	def __hash__(self):
+		return self.__hash
+
+	def __eq__(self,other):
+		return self.expr.numeric_eq(other.expr)
 
 def solutions(target,numbers):
 	numcnt = len(numbers)
@@ -178,6 +247,7 @@ def solutions(target,numbers):
 			if all(not (x and y) for x, y in izip(a.used,b.used)):
 				hasroom = not all(x or y for x, y in izip(a.used,b.used))
 				for expr in make(a,b):
+					expr = expr.normalize()
 					if expr not in uniq:
 						uniq.add(expr)
 						issolution = expr.value == target
@@ -280,7 +350,7 @@ def combinations_slice(lower,upper):
 			a += 1
 		i += 1
 
-def make(a,b):
+def old_make(a,b):
 	# bring commutative operations in normalized order
 	# TODO: proper normalization of expressions
 	if a.value > b.value:
@@ -317,11 +387,27 @@ def make(a,b):
 		if a.value != 1:
 			yield Div(b,a)
 
-def solution(target, numbers):
-	try:
-		return solutions(target, numbers).next()
-	except StopIteration:
-		return None
+def make(a,b):
+	# TODO: proper normalization of expressions
+	yield Add(a,b)
+
+	if a.value != 1 and b.value != 1:
+		yield Mul(a,b)
+
+	if a.value > b.value:
+		yield Sub(a,b)
+
+		if b.value != 1 and a.value % b.value == 0:
+			yield Div(a,b)
+	
+	elif b.value > a.value:
+		yield Sub(b,a)
+
+		if a.value != 1 and b.value % a.value == 0:
+			yield Div(b,a)
+
+	elif b.value != 1:
+		yield Div(a,b)
 
 def main(args):
 	from time import time
@@ -352,10 +438,16 @@ def main(args):
 
 	print "solutions:"
 	start = last = time()
-	for i, solution in enumerate(solutions(target,numbers)):
-		now = time()
-		print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution.annot_str(annot_map))
-		last = now
+	uniq_solutions = set()
+	solution_nr = 1
+	for solution in solutions(target,numbers):
+		wrapped = NumericHashedExpr(solution)
+		if wrapped not in uniq_solutions:
+			uniq_solutions.add(wrapped)
+			now = time()
+			print "%3d [%4d / %4d secs]: %s" % (solution_nr, now - last, now - start, solution) #solution.annot_str(annot_map))
+			last = now
+			solution_nr += 1
 	print "%f seconds in total" % (time() - start)
 
 if __name__ == '__main__':
