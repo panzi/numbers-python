@@ -44,7 +44,10 @@ class Add(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s + %s' % (self.left.str_under(p), self.right.str_under(p))
-	
+
+	def order(self):
+		return (1, self.value)
+
 	precedence = property(lambda self: 0)
 
 class Sub(BinExpr):
@@ -55,6 +58,9 @@ class Sub(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s - %s' % (self.left.str_under(p), self.right.str_under(p))
+
+	def order(self):
+		return (2, self.value)
 	
 	precedence = property(lambda self: 0)
 		
@@ -68,7 +74,10 @@ class Mul(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s * %s' % (self.left.str_under(p), self.right.str_under(p))
-	
+
+	def order(self):
+		return (3, self.value)
+
 	precedence = property(lambda self: 2)
 
 class Div(BinExpr):
@@ -79,6 +88,9 @@ class Div(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s / %s' % (self.left.str_under(p), self.right.str_under(p))
+
+	def order(self):
+		return (4, self.value)
 
 	precedence = property(lambda self: 1)
 
@@ -104,6 +116,9 @@ class Val(Expr):
 			return False
 
 		return self.index == other.index
+
+	def order(self):
+		return (0, self.index)
 
 	precedence = property(lambda self: 3)
 
@@ -229,27 +244,41 @@ def combinations_slice(lower,upper):
 		i += 1
 
 def make(a,b):
-	exprs = [Add(a,b)]
-
-	if a.value != 1 and b.value != 1:
-		exprs.append(Mul(a,b))
-
+	# bring commutative operations in normalized order
+	# TODO: proper normalization of expressions
 	if a.value > b.value:
-		exprs.append(Sub(a,b))
+		yield Add(a,b)
+
+		if a.value != 1 and b.value != 1:
+			yield Mul(a,b)
+
+		yield Sub(a,b)
 
 		if b.value != 1 and a.value % b.value == 0:
-			exprs.append(Div(a,b))
+			yield Div(a,b)
 	
 	elif b.value > a.value:
-		exprs.append(Sub(b,a))
+		yield Sub(b,a)
 
 		if a.value != 1 and b.value % a.value == 0:
-			exprs.append(Div(b,a))
+			yield Div(b,a)
 
-	elif b.value != 1: # a.value == b.value
-		exprs.append(Div(a,b))
-	
-	return exprs
+	elif a.order() > b.order():
+		yield Add(a,b)
+
+		if a.value != 1 and b.value != 1:
+			yield Mul(a,b)
+
+		if b.value != 1:
+			yield Div(a,b)
+	else:
+		yield Add(b,a)
+
+		if b.value != 1 and a.value != 1:
+			yield Mul(b,a)
+
+		if a.value != 1:
+			yield Div(b,a)
 
 def solution(target, numbers):
 	try:
@@ -267,8 +296,8 @@ def main(args):
 	numbers = [int(arg,10) for arg in args[2:]]
 	numbers.sort()
 
-	if target <= 0:
-		raise ValueError("target has to be > 0")
+	if target < 0:
+		raise ValueError("target has to be >= 0")
 
 	if any(num <= 0 for num in numbers):
 		raise ValueError("numbers have to be > 0")
