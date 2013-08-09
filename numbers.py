@@ -11,6 +11,13 @@ class Expr(object):
 #		else:
 #			return str(self)
 
+	def annot_str_under(self,annot_map,precedence):
+		return '(%s)' % self.annot_str(annot_map)
+#		if precedence > self.precedence:
+#			return '(%s)' % self.annot_str(annot_map)
+#		else:
+#			return self.annot_str(annot_map)
+
 	def __hash__(self):
 		return hash(str(self))
 	
@@ -29,7 +36,7 @@ class BinExpr(Expr):
 		return hash((self.__class__, self.left, self.right))
 
 	def __eq__(self,other):
-		if type(self) != type(other):
+		if type(self) is not type(other):
 			return False
 
 		return self.left == other.left and self.right == other.right
@@ -40,10 +47,16 @@ class Add(BinExpr):
 		if left.value > right.value:
 			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value + right.value)
-	
+
 	def __str__(self):
 		p = self.precedence
 		return '%s + %s' % (self.left.str_under(p), self.right.str_under(p))
+
+	def annot_str(self,annot_map):
+		p = self.precedence
+		return '%s + %s' % (
+			self.left.annot_str_under(annot_map,p),
+			self.right.annot_str_under(annot_map,p))
 
 	def order(self):
 		return (1, self.value)
@@ -58,6 +71,12 @@ class Sub(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s - %s' % (self.left.str_under(p), self.right.str_under(p))
+
+	def annot_str(self,annot_map):
+		p = self.precedence
+		return '%s - %s' % (
+			self.left.annot_str_under(annot_map,p),
+			self.right.annot_str_under(annot_map,p))
 
 	def order(self):
 		return (2, self.value)
@@ -75,6 +94,12 @@ class Mul(BinExpr):
 		p = self.precedence
 		return '%s * %s' % (self.left.str_under(p), self.right.str_under(p))
 
+	def annot_str(self,annot_map):
+		p = self.precedence
+		return '%s * %s' % (
+			self.left.annot_str_under(annot_map,p),
+			self.right.annot_str_under(annot_map,p))
+
 	def order(self):
 		return (3, self.value)
 
@@ -88,6 +113,12 @@ class Div(BinExpr):
 	def __str__(self):
 		p = self.precedence
 		return '%s / %s' % (self.left.str_under(p), self.right.str_under(p))
+
+	def annot_str(self,annot_map):
+		p = self.precedence
+		return '%s / %s' % (
+			self.left.annot_str_under(annot_map,p),
+			self.right.annot_str_under(annot_map,p))
 
 	def order(self):
 		return (4, self.value)
@@ -107,24 +138,30 @@ class Val(Expr):
 
 	def str_under(self,precedence):
 		return str(self.value)
-	
+
+	def annot_str(self,annot_map):
+		return str(self.value) + ("'" * annot_map[self.index])
+
+	def annot_str_under(self,annot_map,precedence):
+		return self.annot_str(annot_map)
+
 	def __hash__(self):
 		return hash(self.index)
 
 	def __eq__(self,other):
-		if type(self) != type(other):
+		if type(self) is not type(other):
 			return False
 
 		return self.index == other.index
 
 	def order(self):
-		return (0, self.index)
+		return (0, -self.index)
 
 	precedence = property(lambda self: 3)
 
 def solutions(target,numbers):
 	numcnt = len(numbers)
-	exprs  = [Val(num,i,numcnt) for i, num in enumerate(sorted(numbers))]
+	exprs  = [Val(num,i,numcnt) for i, num in enumerate(numbers)]
 
 	for expr in exprs:
 		if expr.value == target:
@@ -302,6 +339,13 @@ def main(args):
 	if any(num <= 0 for num in numbers):
 		raise ValueError("numbers have to be > 0")
 
+	number_counts = {}
+	annot_map = [0] * len(numbers)
+	for i, num in enumerate(numbers):
+		number_count = number_counts.get(num,0)
+		annot_map[i] = number_count
+		number_counts[num] =  number_count + 1
+
 	print 'target   = %r' % target
 	print 'numbers  = %r' % (numbers,)
 #	print 'solution = %s' % exact_solution(target, numbers)
@@ -310,7 +354,7 @@ def main(args):
 	start = last = time()
 	for i, solution in enumerate(solutions(target,numbers)):
 		now = time()
-		print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution)
+		print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution.annot_str(annot_map))
 		last = now
 	print "%f seconds in total" % (time() - start)
 
