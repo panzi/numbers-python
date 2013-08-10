@@ -346,121 +346,32 @@ def solutions(target,numbers):
 			yield expr
 
 	uniq = set(exprs)
-	n = numcnt
-	comb = bounded_combinations(len(exprs))
 	uniq_solutions = set()
-	while True:
-		for a, b in comb:
-			a = exprs[a]
-			b = exprs[b]
 
-			if all(not (x and y) for x, y in izip(a.used,b.used)):
-				hasroom = not all(x or y for x, y in izip(a.used,b.used))
-				for expr in make(a,b):
-					expr = expr.normalize()
-					if expr not in uniq:
-						uniq.add(expr)
-						issolution = expr.value == target
-						if hasroom and not issolution:
-							exprs.append(expr)
-						if issolution:
-							wrapped = NumericHashedExpr(expr)
-							if wrapped not in uniq_solutions:
-								uniq_solutions.add(wrapped)
-								yield expr
-		m = len(exprs)
-		if n < m:
-			comb = combinations_slice(n,m)
-			n = m
-		else:
-			break
+	lower = 0
+	upper = numcnt
+	while lower < upper:
+		for b in xrange(lower,upper):
+			for a in xrange(0,b):
+				aexpr = exprs[a]
+				bexpr = exprs[b]
 
-#      1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20
-#  1
-#  2   1
-#  3   2   4
-#  4   3   6   9
-#  5   5   8  12  16
-#  6   7  11  15  20  25
-#  7  10  14  19  24  30  36
-#  8  13  18  23  29  35  42   .
-#  9  17  22  28  34  41   .   .   .
-# 10  21  27  33  40   .   .   .   .   .
-# 11  26  32  39   .   .   .   .   .   .   .
-# 12  31  38   .   .   .   .   .   .   .   .   .
-# 13  37   .   .   .   .   .   .   .   .   .   .   .
-# 14   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 15   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 16   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 17   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 18   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 19   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-# 20   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .
-
-def combinations():
-	"""
-	all integers >= 0 combined, no combinations with self and no reverse combinations
-	"""
-	i = 0
-	while True:
-		a = 0
-		b = i
-		while b > a:
-			yield a, b
-			b -= 1
-			a += 1
-		i += 1
-
-def bounded_combinations(n):
-	"""
-	integers >= 0 and < n combined, no combinations with self and no reverse combinations
-	"""
-	i = 0
-	while i < n:
-		a = 0
-		b = i
-		while b > a:
-			yield a, b
-			b -= 1
-			a += 1
-		i += 1
-	
-	i = 1
-	while i < n:
-		a = i
-		b = n - 1
-		while b > a:
-			yield a, b
-			b -= 1
-			a += 1
-		i += 1
-
-def combinations_slice(lower,upper):
-	"""
-	integers >= lower and < upper combined, no combinations with self and no reverse combinations
-	"""
-	if lower >= upper:
-		return
-
-	i = lower
-	while i < upper:
-		a = 0
-		b = i
-		while b > a and b >= lower:
-			yield a, b
-			b -= 1
-			a += 1
-		i += 1
-	
-	i = 1
-	while i < upper:
-		a = i
-		b = upper - 1
-		while b > a and b >= lower:
-			yield a, b
-			b -= 1
-			a += 1
-		i += 1
+				if all(not (x and y) for x, y in izip(aexpr.used,bexpr.used)):
+					hasroom = not all(x or y for x, y in izip(aexpr.used,bexpr.used))
+					for expr in make(aexpr,bexpr):
+						expr = expr.normalize()
+						if expr not in uniq:
+							uniq.add(expr)
+							issolution = expr.value == target
+							if hasroom and not issolution:
+								exprs.append(expr)
+							if issolution:
+								wrapped = NumericHashedExpr(expr)
+								if wrapped not in uniq_solutions:
+									uniq_solutions.add(wrapped)
+									yield expr
+		lower = upper
+		upper = len(exprs)
 
 def make(a,b):
 	yield Add(a,b)
