@@ -74,15 +74,15 @@ class Add(BinExpr):
 		return (1, self.value)
 	
 	def normalize(self):
-		# TODO: don't create new objects if already normalized
+		# don't create new objects if already normalized
 		rt = type(self.right)
+		lt = type(self.left)
 
-		if rt is Add:
-			if type(self.left) is Add and self.right.value > self.left.right.value:
-				return self
-
-		elif rt is not Sub:
-			if type(self.left) is Add and self.right.value > self.left.right.value:
+		if lt is not Sub and rt not in (Add, Sub):
+			if lt is Add:
+				if self.left.right.value <= self.right.value:
+					return self
+			else:
 				return self
 
 		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
@@ -161,7 +161,16 @@ class Sub(BinExpr):
 		return (2, self.value)
 	
 	def normalize(self):
-		# TODO: don't create new objects if already normalized
+		# don't create new objects if already normalized
+		rt = type(self.right)
+
+		if rt not in (Add, Sub):
+			if type(self.left) is Sub:
+				if self.left.right.value <= self.right.value:
+					return self
+			else:
+				return self
+
 		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
 		right_subs, right_adds = build_lists(self.right,Add,Sub)
 
@@ -198,7 +207,17 @@ class Mul(BinExpr):
 		return (3, self.value)
 		
 	def normalize(self):
-		# TODO: don't create new objects if already normalized
+		# don't create new objects if already normalized
+		rt = type(self.right)
+		lt = type(self.left)
+
+		if lt is not Div and rt not in (Mul, Div):
+			if lt is Mul:
+				if self.left.right.value <= self.right.value:
+					return self
+			else:
+				return self
+
 		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
 		right_muls, right_divs = build_lists(self.right,Mul,Div)
 
@@ -230,7 +249,16 @@ class Div(BinExpr):
 			self.right.annot_str_under(annot_map,p))
 
 	def normalize(self):
-		# TODO: don't create new objects if already normalized
+		# don't create new objects if already normalized
+		rt = type(self.right)
+
+		if rt not in (Mul, Div):
+			if type(self.left) is Div:
+				if self.left.right.value <= self.right.value:
+					return self
+			else:
+				return self
+
 		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
 		right_divs, right_muls = build_lists(self.right,Mul,Div)
 
@@ -337,7 +365,6 @@ def solutions(target,numbers):
 						if issolution:
 							yield expr
 		m = len(exprs)
-		# TODO: speedup by somehow not generating combinations that use too many numbers
 		if n < m:
 			comb = combinations_slice(n,m)
 			n = m
@@ -432,7 +459,6 @@ def combinations_slice(lower,upper):
 		i += 1
 
 def make(a,b):
-	# TODO: proper normalization of expressions
 	yield Add(a,b)
 
 	if a.value != 1 and b.value != 1:
