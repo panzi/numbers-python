@@ -348,6 +348,7 @@ def solutions(target,numbers):
 	uniq = set(exprs)
 	n = numcnt
 	comb = bounded_combinations(len(exprs))
+	uniq_solutions = set()
 	while True:
 		for a, b in comb:
 			a = exprs[a]
@@ -363,7 +364,10 @@ def solutions(target,numbers):
 						if hasroom and not issolution:
 							exprs.append(expr)
 						if issolution:
-							yield expr
+							wrapped = NumericHashedExpr(expr)
+							if wrapped not in uniq_solutions:
+								uniq_solutions.add(wrapped)
+								yield expr
 		m = len(exprs)
 		if n < m:
 			comb = combinations_slice(n,m)
@@ -508,18 +512,11 @@ def main(args):
 
 	print "solutions:"
 	start = last = time()
-	uniq_solutions = set()
-	solution_nr = 1
 	try:
-		for solution in solutions(target,numbers):
-			wrapped = NumericHashedExpr(solution)
-			if wrapped not in uniq_solutions:
-				uniq_solutions.add(wrapped)
-				now = time()
-				print "%3d [%4d / %4d secs]: %s" % (
-					solution_nr, now - last, now - start, solution) #solution.annot_str(annot_map))
-				last = now
-				solution_nr += 1
+		for i, solution in enumerate(solutions(target,numbers)):
+			now = time()
+			print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution)
+			last = now
 	except KeyboardInterrupt:
 		print
 	print "%f seconds in total" % (time() - start)
