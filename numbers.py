@@ -56,7 +56,7 @@ class BinExpr(Expr):
 class Add(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
-		if left.value < right.value:
+		if left.value > right.value:
 			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value + right.value)
 
@@ -75,20 +75,28 @@ class Add(BinExpr):
 	
 	def normalize(self):
 		# TODO: don't create new objects if already normalized
+		rt = type(self.right)
+
+		if rt is Add:
+			if type(self.left) is Add and self.right.value > self.left.right.value:
+				return self
+
+		elif rt is not Sub:
+			if type(self.left) is Add and self.right.value > self.left.right.value:
+				return self
+
 		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
 		right_adds, right_subs = build_lists(self.right,Add,Sub)
 
 		adds = merge(left_adds,right_adds)
 		subs = merge(left_subs,right_subs)
 
-		if adds:
-			node = adds[0]
-			for right in adds[1:]:
-				node = Add(node,right)
-			for right in subs:
-				node = Sub(node,right)
-			return node
-		return self
+		node = adds[0]
+		for right in adds[1:]:
+			node = Add(node,right)
+		for right in subs:
+			node = Sub(node,right)
+		return node
 
 	precedence = property(lambda self: 0)
 
@@ -160,14 +168,12 @@ class Sub(BinExpr):
 		adds = merge(left_adds,right_adds)
 		subs = merge(left_subs,right_subs)
 
-		if adds:
-			node = adds[0]
-			for right in adds[1:]:
-				node = Add(node,right)
-			for right in subs:
-				node = Sub(node,right)
-			return node
-		return self
+		node = adds[0]
+		for right in adds[1:]:
+			node = Add(node,right)
+		for right in subs:
+			node = Sub(node,right)
+		return node
 	
 	precedence = property(lambda self: 1)
 		
@@ -199,14 +205,12 @@ class Mul(BinExpr):
 		muls = merge(left_muls,right_muls)
 		divs = merge(left_divs,right_divs)
 
-		if muls:
-			node = muls[0]
-			for right in muls[1:]:
-				node = Mul(node,right)
-			for right in divs:
-				node = Div(node,right)
-			return node
-		return self
+		node = muls[0]
+		for right in muls[1:]:
+			node = Mul(node,right)
+		for right in divs:
+			node = Div(node,right)
+		return node
 
 	precedence = property(lambda self: 3)
 
@@ -233,14 +237,12 @@ class Div(BinExpr):
 		muls = merge(left_muls,right_muls)
 		divs = merge(left_divs,right_divs)
 
-		if muls:
-			node = muls[0]
-			for right in muls[1:]:
-				node = Mul(node,right)
-			for right in divs:
-				node = Div(node,right)
-			return node
-		return self
+		node = muls[0]
+		for right in muls[1:]:
+			node = Mul(node,right)
+		for right in divs:
+			node = Div(node,right)
+		return node
 
 	def order(self):
 		return (4, self.value)
