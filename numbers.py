@@ -56,6 +56,8 @@ class BinExpr(Expr):
 class Add(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
+		if left.value < right.value:
+			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value + right.value)
 
 	def __str__(self):
@@ -72,22 +74,65 @@ class Add(BinExpr):
 		return (1, self.value)
 	
 	def normalize(self):
-		# TODO: incorporate Sub
-		if type(self.right) is Add:
-			stack = [self.left]
-			node = self.right
-			while type(node) is Add:
-				stack.append(node.right)
-				node = node.left
-			stack.append(node)
-			stack.sort(key=lambda node:node.value)
-			left = stack[0]
-			for right in stack[1:]:
-				left = Add(left,right)
-			return left
+		# TODO: don't create new objects if already normalized
+		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
+		right_adds, right_subs = build_lists(self.right,Add,Sub)
+
+		adds = merge(left_adds,right_adds)
+		subs = merge(left_subs,right_subs)
+
+		if adds:
+			node = adds[0]
+			for right in adds[1:]:
+				node = Add(node,right)
+			for right in subs:
+				node = Sub(node,right)
+			return node
 		return self
 
 	precedence = property(lambda self: 0)
+
+def merge(left,right):
+	lst = []
+	i = len(left)  - 1
+	j = len(right) - 1
+
+	while i >= 0 and j >= 0:
+		x = left[i]
+		y = right[j]
+		if x.value <= y.value:
+			lst.append(x)
+			i -= 1
+		else:
+			lst.append(y)
+			j -= 1
+
+	while i >= 0:
+		lst.append(left[i])
+		i -= 1
+		
+	while j >= 0:
+		lst.append(right[j])
+		j -= 1
+
+	return lst
+	
+
+def build_lists(node,X,Y):
+	xs = []
+	ys = []
+	while True:
+		t = type(node)
+		if t is X:
+			xs.append(node.right)
+			node = node.left
+		elif t is Y:
+			ys.append(node.right)
+			node = node.left
+		else:
+			break
+	xs.append(node)
+	return xs, ys
 
 class Sub(BinExpr):
 	__slots__ = ()
@@ -107,13 +152,30 @@ class Sub(BinExpr):
 	def order(self):
 		return (2, self.value)
 	
-	# TODO: normalize
+	def normalize(self):
+		# TODO: don't create new objects if already normalized
+		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
+		right_subs, right_adds = build_lists(self.right,Add,Sub)
+
+		adds = merge(left_adds,right_adds)
+		subs = merge(left_subs,right_subs)
+
+		if adds:
+			node = adds[0]
+			for right in adds[1:]:
+				node = Add(node,right)
+			for right in subs:
+				node = Sub(node,right)
+			return node
+		return self
 	
-	precedence = property(lambda self: 0)
+	precedence = property(lambda self: 1)
 		
 class Mul(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
+		if left.value > right.value:
+			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value * right.value)
 		
 	def __str__(self):
@@ -130,21 +192,23 @@ class Mul(BinExpr):
 		return (3, self.value)
 		
 	def normalize(self):
-		if type(self.right) is Mul:
-			stack = [self.left]
-			node = self.right
-			while type(node) is Mul:
-				stack.append(node.right)
-				node = node.left
-			stack.append(node)
-			stack.sort(key=lambda node:node.value)
-			left = stack[0]
-			for right in stack[1:]:
-				left = Add(left,right)
-			return left
+		# TODO: don't create new objects if already normalized
+		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
+		right_muls, right_divs = build_lists(self.right,Mul,Div)
+
+		muls = merge(left_muls,right_muls)
+		divs = merge(left_divs,right_divs)
+
+		if muls:
+			node = muls[0]
+			for right in muls[1:]:
+				node = Mul(node,right)
+			for right in divs:
+				node = Div(node,right)
+			return node
 		return self
 
-	precedence = property(lambda self: 2)
+	precedence = property(lambda self: 3)
 
 class Div(BinExpr):
 	__slots__ = ()
@@ -161,12 +225,27 @@ class Div(BinExpr):
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
 
-	# TODO: normalize
+	def normalize(self):
+		# TODO: don't create new objects if already normalized
+		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
+		right_divs, right_muls = build_lists(self.right,Mul,Div)
+
+		muls = merge(left_muls,right_muls)
+		divs = merge(left_divs,right_divs)
+
+		if muls:
+			node = muls[0]
+			for right in muls[1:]:
+				node = Mul(node,right)
+			for right in divs:
+				node = Div(node,right)
+			return node
+		return self
 
 	def order(self):
 		return (4, self.value)
 
-	precedence = property(lambda self: 1)
+	precedence = property(lambda self: 2)
 
 class Val(Expr):
 	__slots__ = 'value','used','index'
@@ -214,7 +293,7 @@ class Val(Expr):
 	
 	deep_clone = clone
 
-	precedence = property(lambda self: 3)
+	precedence = property(lambda self: 4)
 
 class NumericHashedExpr(object):
 	__slots__ = 'expr','__hash'
@@ -350,43 +429,6 @@ def combinations_slice(lower,upper):
 			a += 1
 		i += 1
 
-def old_make(a,b):
-	# bring commutative operations in normalized order
-	# TODO: proper normalization of expressions
-	if a.value > b.value:
-		yield Add(a,b)
-
-		if a.value != 1 and b.value != 1:
-			yield Mul(a,b)
-
-		yield Sub(a,b)
-
-		if b.value != 1 and a.value % b.value == 0:
-			yield Div(a,b)
-	
-	elif b.value > a.value:
-		yield Sub(b,a)
-
-		if a.value != 1 and b.value % a.value == 0:
-			yield Div(b,a)
-
-	elif a.order() > b.order():
-		yield Add(a,b)
-
-		if a.value != 1 and b.value != 1:
-			yield Mul(a,b)
-
-		if b.value != 1:
-			yield Div(a,b)
-	else:
-		yield Add(b,a)
-
-		if b.value != 1 and a.value != 1:
-			yield Mul(b,a)
-
-		if a.value != 1:
-			yield Div(b,a)
-
 def make(a,b):
 	# TODO: proper normalization of expressions
 	yield Add(a,b)
@@ -440,14 +482,18 @@ def main(args):
 	start = last = time()
 	uniq_solutions = set()
 	solution_nr = 1
-	for solution in solutions(target,numbers):
-		wrapped = NumericHashedExpr(solution)
-		if wrapped not in uniq_solutions:
-			uniq_solutions.add(wrapped)
-			now = time()
-			print "%3d [%4d / %4d secs]: %s" % (solution_nr, now - last, now - start, solution) #solution.annot_str(annot_map))
-			last = now
-			solution_nr += 1
+	try:
+		for solution in solutions(target,numbers):
+			wrapped = NumericHashedExpr(solution)
+			if wrapped not in uniq_solutions:
+				uniq_solutions.add(wrapped)
+				now = time()
+				print "%3d [%4d / %4d secs]: %s" % (
+					solution_nr, now - last, now - start, solution) #solution.annot_str(annot_map))
+				last = now
+				solution_nr += 1
+	except KeyboardInterrupt:
+		print
 	print "%f seconds in total" % (time() - start)
 
 if __name__ == '__main__':
