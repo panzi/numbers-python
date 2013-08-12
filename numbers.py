@@ -27,7 +27,7 @@ class BinExpr(Expr):
 		self.left  = left
 		self.right = right
 		self.value = value
-		self.used  = [l or r for l, r in izip(left.used,right.used)]
+		self.used  = left.used | right.used
 
 	def __hash__(self):
 		return hash((self.__class__, self.left, self.right))
@@ -279,11 +279,10 @@ class Div(BinExpr):
 
 class Val(Expr):
 	__slots__ = 'value','used','index'
-	def __init__(self,value,index,numcnt):
+	def __init__(self,value,index):
 		self.value = value
 		self.index = index
-		self.used  = [False] * numcnt
-		self.used[index] = True
+		self.used  = 1 << index
 	
 	def __str__(self):
 		return str(self.value)
@@ -319,7 +318,7 @@ class Val(Expr):
 		return (0, -self.index)
 	
 	def clone(self):
-		return Val(self.value,self.index,len(self.used))
+		return Val(self.value,self.index)
 	
 	deep_clone = clone
 
@@ -339,7 +338,8 @@ class NumericHashedExpr(object):
 
 def solutions(target,numbers):
 	numcnt = len(numbers)
-	exprs  = [Val(num,i,numcnt) for i, num in enumerate(numbers)]
+	full_usage = ~(~0 << numcnt)
+	exprs = [Val(num,i) for i, num in enumerate(numbers)]
 
 	for expr in exprs:
 		if expr.value == target:
@@ -356,8 +356,8 @@ def solutions(target,numbers):
 				aexpr = exprs[a]
 				bexpr = exprs[b]
 
-				if all(not (x and y) for x, y in izip(aexpr.used,bexpr.used)):
-					hasroom = not all(x or y for x, y in izip(aexpr.used,bexpr.used))
+				if aexpr.used & bexpr.used == 0:
+					hasroom = (aexpr.used | bexpr.used) != full_usage
 					for expr in make(aexpr,bexpr):
 						expr = expr.normalize()
 						if expr not in uniq:
