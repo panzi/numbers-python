@@ -5,18 +5,18 @@ from itertools import izip
 class Expr(object):
 	__slots__ = ()
 	def str_under(self,precedence):
-		return '(%s)' % str(self)
-#		if precedence > self.precedence:
-#			return '(%s)' % str(self)
-#		else:
-#			return str(self)
+#		return '(%s)' % str(self)
+		if precedence > self.precedence:
+			return '(%s)' % str(self)
+		else:
+			return str(self)
 
 	def annot_str_under(self,annot_map,precedence):
-		return '(%s)' % self.annot_str(annot_map)
-#		if precedence > self.precedence:
-#			return '(%s)' % self.annot_str(annot_map)
-#		else:
-#			return self.annot_str(annot_map)
+#		return '(%s)' % self.annot_str(annot_map)
+		if precedence > self.precedence:
+			return '(%s)' % self.annot_str(annot_map)
+		else:
+			return self.annot_str(annot_map)
 
 	def normalize(self):
 		return self	
