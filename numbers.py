@@ -257,8 +257,8 @@ def solutions(target,numbers):
 	for expr in exprs:
 		if expr.value == target:
 			yield expr
+			break
 
-	uniq = set(exprs)
 	uniq_solutions = set()
 
 	lower = 0
@@ -272,16 +272,14 @@ def solutions(target,numbers):
 				if aexpr.used & bexpr.used == 0:
 					hasroom = (aexpr.used | bexpr.used) != full_usage
 					for expr in make(aexpr,bexpr):
-						if expr not in uniq:
-							uniq.add(expr)
-							issolution = expr.value == target
-							if hasroom and not issolution:
-								exprs.append(expr)
-							if issolution:
-								wrapped = NumericHashedExpr(expr)
-								if wrapped not in uniq_solutions:
-									uniq_solutions.add(wrapped)
-									yield expr
+						issolution = expr.value == target
+						if hasroom and not issolution:
+							exprs.append(expr)
+						if issolution:
+							wrapped = NumericHashedExpr(expr)
+							if wrapped not in uniq_solutions:
+								uniq_solutions.add(wrapped)
+								yield expr
 		lower = upper
 		upper = len(exprs)
 
