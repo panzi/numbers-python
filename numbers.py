@@ -56,8 +56,6 @@ class BinExpr(Expr):
 class Add(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
-		if left.value > right.value:
-			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value + right.value)
 
 	def __str__(self):
@@ -70,77 +68,7 @@ class Add(BinExpr):
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
 
-	def order(self):
-		return (1, self.value)
-	
-	def normalize(self):
-		# don't create new objects if already normalized
-		rt = type(self.right)
-		lt = type(self.left)
-
-		if lt is not Sub and rt not in (Add, Sub):
-			if lt is Add:
-				if self.left.right.value <= self.right.value:
-					return self
-			else:
-				return self
-
-		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
-		right_adds, right_subs = build_lists(self.right,Add,Sub)
-
-		adds = merge(left_adds,right_adds)
-		subs = merge(left_subs,right_subs)
-
-		node = adds[0]
-		for right in adds[1:]:
-			node = Add(node,right)
-		for right in subs:
-			node = Sub(node,right)
-		return node
-
 	precedence = property(lambda self: 0)
-
-def merge(left,right):
-	lst = []
-	i = len(left)  - 1
-	j = len(right) - 1
-
-	while i >= 0 and j >= 0:
-		x = left[i]
-		y = right[j]
-		if x.value <= y.value:
-			lst.append(x)
-			i -= 1
-		else:
-			lst.append(y)
-			j -= 1
-
-	while i >= 0:
-		lst.append(left[i])
-		i -= 1
-		
-	while j >= 0:
-		lst.append(right[j])
-		j -= 1
-
-	return lst
-	
-
-def build_lists(node,X,Y):
-	xs = []
-	ys = []
-	while True:
-		t = type(node)
-		if t is X:
-			xs.append(node.right)
-			node = node.left
-		elif t is Y:
-			ys.append(node.right)
-			node = node.left
-		else:
-			break
-	xs.append(node)
-	return xs, ys
 
 class Sub(BinExpr):
 	__slots__ = ()
@@ -156,41 +84,12 @@ class Sub(BinExpr):
 		return '%s - %s' % (
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
-
-	def order(self):
-		return (2, self.value)
-	
-	def normalize(self):
-		# don't create new objects if already normalized
-		rt = type(self.right)
-
-		if rt not in (Add, Sub):
-			if type(self.left) is Sub:
-				if self.left.right.value <= self.right.value:
-					return self
-			else:
-				return self
-
-		left_adds,  left_subs  = build_lists(self.left,Add,Sub)
-		right_subs, right_adds = build_lists(self.right,Add,Sub)
-
-		adds = merge(left_adds,right_adds)
-		subs = merge(left_subs,right_subs)
-
-		node = adds[0]
-		for right in adds[1:]:
-			node = Add(node,right)
-		for right in subs:
-			node = Sub(node,right)
-		return node
 	
 	precedence = property(lambda self: 1)
 		
 class Mul(BinExpr):
 	__slots__ = ()
 	def __init__(self,left,right):
-		if left.value > right.value:
-			left, right = right, left
 		BinExpr.__init__(self,left,right,left.value * right.value)
 		
 	def __str__(self):
@@ -202,34 +101,6 @@ class Mul(BinExpr):
 		return '%s * %s' % (
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
-
-	def order(self):
-		return (3, self.value)
-		
-	def normalize(self):
-		# don't create new objects if already normalized
-		rt = type(self.right)
-		lt = type(self.left)
-
-		if lt is not Div and rt not in (Mul, Div):
-			if lt is Mul:
-				if self.left.right.value <= self.right.value:
-					return self
-			else:
-				return self
-
-		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
-		right_muls, right_divs = build_lists(self.right,Mul,Div)
-
-		muls = merge(left_muls,right_muls)
-		divs = merge(left_divs,right_divs)
-
-		node = muls[0]
-		for right in muls[1:]:
-			node = Mul(node,right)
-		for right in divs:
-			node = Div(node,right)
-		return node
 
 	precedence = property(lambda self: 3)
 
@@ -272,9 +143,6 @@ class Div(BinExpr):
 			node = Div(node,right)
 		return node
 
-	def order(self):
-		return (4, self.value)
-
 	precedence = property(lambda self: 2)
 
 class Val(Expr):
@@ -314,9 +182,6 @@ class Val(Expr):
 
 		return self.value == other.value
 
-	def order(self):
-		return (0, -self.index)
-	
 	def clone(self):
 		return Val(self.value,self.index)
 	
@@ -335,6 +200,54 @@ class NumericHashedExpr(object):
 
 	def __eq__(self,other):
 		return self.expr.numeric_eq(other.expr)
+
+def is_normalized_add(left,right):
+	rt = type(right)
+	if rt is Add or rt is Sub:
+		return False
+
+	lt = type(left)
+	if lt is Add:
+		return left.right.value <= right.value
+	elif lt is Sub:
+		return False
+	else:
+		return left.value <= right.value
+
+def is_normalized_sub(left,right):
+	rt = type(right)
+	if rt is Add or rt is Sub:
+		return False
+
+	lt = type(left)
+	if lt is Sub:
+		return left.right.value <= right.value
+	else:
+		return True
+
+def is_normalized_mul(left,right):
+	rt = type(right)
+	if rt is Mul or rt is Div:
+		return False
+
+	lt = type(left)
+	if lt is Mul:
+		return left.right.value <= right.value
+	elif lt is Div:
+		return False
+	else:
+		return left.value <= right.value
+
+def is_normalized_div(left,right):
+	rt = type(right)
+	if rt is Mul or rt is Div:
+		return False
+
+	lt = type(left)
+	if lt is Div:
+		return left.right.value <= right.value
+	else:
+		return True
 
 def solutions(target,numbers):
 	numcnt = len(numbers)
@@ -359,7 +272,6 @@ def solutions(target,numbers):
 				if aexpr.used & bexpr.used == 0:
 					hasroom = (aexpr.used | bexpr.used) != full_usage
 					for expr in make(aexpr,bexpr):
-						expr = expr.normalize()
 						if expr not in uniq:
 							uniq.add(expr)
 							issolution = expr.value == target
@@ -374,25 +286,36 @@ def solutions(target,numbers):
 		upper = len(exprs)
 
 def make(a,b):
-	yield Add(a,b)
+	if is_normalized_add(a,b):
+		yield Add(a,b)
+	elif is_normalized_add(b,a):
+		yield Add(b,a)
 
 	if a.value != 1 and b.value != 1:
-		yield Mul(a,b)
+		if is_normalized_mul(a,b):
+			yield Mul(a,b)
+		elif is_normalized_mul(b,a):
+			yield Mul(b,a)
 
 	if a.value > b.value:
-		yield Sub(a,b)
+		if is_normalized_sub(a,b):
+			yield Sub(a,b)
 
-		if b.value != 1 and a.value % b.value == 0:
+		if b.value != 1 and a.value % b.value == 0 and is_normalized_div(a,b):
 			yield Div(a,b)
 	
 	elif b.value > a.value:
-		yield Sub(b,a)
+		if is_normalized_sub(b,a):
+			yield Sub(b,a)
 
-		if a.value != 1 and b.value % a.value == 0:
+		if a.value != 1 and b.value % a.value == 0 and is_normalized_div(b,a):
 			yield Div(b,a)
 
 	elif b.value != 1:
-		yield Div(a,b)
+		if is_normalized_div(a,b):
+			yield Div(a,b)
+		elif is_normalized_div(b,a):
+			yield Div(b,a)
 
 def main(args):
 	from time import time
@@ -417,13 +340,14 @@ def main(args):
 		annot_map[i] = number_count
 		number_counts[num] =  number_count + 1
 
-	print 'target   = %r' % target
-	print 'numbers  = %r' % (numbers,)
-#	print 'solution = %s' % exact_solution(target, numbers)
+	print 'target  = %r' % target
+	print 'numbers = %r' % (numbers,)
 
 	print "solutions:"
 	start = last = time()
 	try:
+#		for solution in solutions(target,numbers):
+#			print str(solution)
 		for i, solution in enumerate(solutions(target,numbers)):
 			now = time()
 			print "%3d [%4d / %4d secs]: %s" % (i+1, now - last, now - start, solution)
