@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-from itertools import izip
-
 class Expr(object):
 	__slots__ = ()
 	def str_under(self,precedence):
