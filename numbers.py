@@ -16,9 +16,6 @@ class Expr(object):
 		else:
 			return self.annot_str(annot_map)
 
-	def normalize(self):
-		return self	
-
 class BinExpr(Expr):
 	__slots__ = 'left', 'right', 'value', 'used'
 	def __init__(self,left,right,value):
@@ -116,30 +113,6 @@ class Div(BinExpr):
 		return '%s / %s' % (
 			self.left.annot_str_under(annot_map,p),
 			self.right.annot_str_under(annot_map,p))
-
-	def normalize(self):
-		# don't create new objects if already normalized
-		rt = type(self.right)
-
-		if rt not in (Mul, Div):
-			if type(self.left) is Div:
-				if self.left.right.value <= self.right.value:
-					return self
-			else:
-				return self
-
-		left_muls,  left_divs  = build_lists(self.left,Mul,Div)
-		right_divs, right_muls = build_lists(self.right,Mul,Div)
-
-		muls = merge(left_muls,right_muls)
-		divs = merge(left_divs,right_divs)
-
-		node = muls[0]
-		for right in muls[1:]:
-			node = Mul(node,right)
-		for right in divs:
-			node = Div(node,right)
-		return node
 
 	precedence = property(lambda self: 2)
 
