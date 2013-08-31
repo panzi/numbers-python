@@ -236,9 +236,10 @@ def solutions(target,numbers):
 	upper = numcnt
 	while lower < upper:
 		for b in xrange(lower,upper):
+			bexpr = exprs[b]
+
 			for a in xrange(0,b):
 				aexpr = exprs[a]
-				bexpr = exprs[b]
 
 				if aexpr.used & bexpr.used == 0:
 					hasroom = (aexpr.used | bexpr.used) != full_usage
