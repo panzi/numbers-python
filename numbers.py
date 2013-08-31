@@ -241,7 +241,7 @@ def solutions(target,numbers):
 			for a in xrange(0,b):
 				aexpr = exprs[a]
 
-				if aexpr.used & bexpr.used == 0:
+				if (aexpr.used & bexpr.used) == 0:
 					hasroom = (aexpr.used | bexpr.used) != full_usage
 					for expr in make(aexpr,bexpr):
 						issolution = expr.value == target
@@ -271,14 +271,14 @@ def make(a,b):
 		if is_normalized_sub(a,b):
 			yield Sub(a,b)
 
-		if b.value != 1 and a.value % b.value == 0 and is_normalized_div(a,b):
+		if b.value != 1 and (a.value % b.value) == 0 and is_normalized_div(a,b):
 			yield Div(a,b)
 	
 	elif b.value > a.value:
 		if is_normalized_sub(b,a):
 			yield Sub(b,a)
 
-		if a.value != 1 and b.value % a.value == 0 and is_normalized_div(b,a):
+		if a.value != 1 and (b.value % a.value) == 0 and is_normalized_div(b,a):
 			yield Div(b,a)
 
 	elif b.value != 1:
