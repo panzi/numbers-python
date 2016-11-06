@@ -1,7 +1,7 @@
 numbers-python
 ==============
 
-Contdown numbers game solver written in Python.
+Countdown numbers game solver written in Python.
 
 Same program in other languages:
  * https://github.com/panzi/numbers-js
